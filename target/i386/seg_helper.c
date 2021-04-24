@@ -871,6 +871,7 @@ static void do_interrupt64(CPUX86State *env, int intno, int is_int,
 
     dt = &env->idt;
     if (intno * 16 + 15 > dt->limit) {
+        printf("#GP during interruption handling due to interruption number exceeding dt limit: %d\n", dt->limit);
         raise_exception_err(env, EXCP0D_GPF, intno * 16 + 2);
     }
     ptr = dt->base + intno * 16;
@@ -884,6 +885,7 @@ static void do_interrupt64(CPUX86State *env, int intno, int is_int,
     case 15: /* 386 trap gate */
         break;
     default:
+        printf("#GP during interruption handling based on the type: %d\n", type);
         raise_exception_err(env, EXCP0D_GPF, intno * 16 + 2);
         break;
     }
@@ -891,6 +893,7 @@ static void do_interrupt64(CPUX86State *env, int intno, int is_int,
     cpl = env->hflags & HF_CPL_MASK;
     /* check privilege if software int */
     if (is_int && dpl < cpl) {
+        printf("#GP during interruption handling due to privilege too weak\n");
         raise_exception_err(env, EXCP0D_GPF, intno * 16 + 2);
     }
     /* check valid bit */
@@ -905,19 +908,23 @@ static void do_interrupt64(CPUX86State *env, int intno, int is_int,
     }
 
     if (load_segment(env, &e1, &e2, selector) != 0) {
+        printf("#GP during interruption handling due to invalid segment loading\n");
         raise_exception_err(env, EXCP0D_GPF, selector & 0xfffc);
     }
     if (!(e2 & DESC_S_MASK) || !(e2 & (DESC_CS_MASK))) {
+        printf("#GP during interruption handling due to invalid flags on segments\n");
         raise_exception_err(env, EXCP0D_GPF, selector & 0xfffc);
     }
     dpl = (e2 >> DESC_DPL_SHIFT) & 3;
     if (dpl > cpl) {
+        printf("#GP during interruption handling due to invalid privileges levels (dpl > cpl): %d, %d\n", dpl, cpl);
         raise_exception_err(env, EXCP0D_GPF, selector & 0xfffc);
     }
     if (!(e2 & DESC_P_MASK)) {
         raise_exception_err(env, EXCP0B_NOSEG, selector & 0xfffc);
     }
     if (!(e2 & DESC_L_MASK) || (e2 & DESC_B_MASK)) {
+        printf("#GP during interruption handling due to invalid flags on segments\n");
         raise_exception_err(env, EXCP0D_GPF, selector & 0xfffc);
     }
     if (e2 & DESC_C_MASK) {
@@ -931,6 +938,7 @@ static void do_interrupt64(CPUX86State *env, int intno, int is_int,
     } else {
         /* to same privilege */
         if (env->eflags & VM_MASK) {
+            printf("#GP during interruption handling due to VM flag in EFLAGS while dpl >= cpl && ist == 0\n");
             raise_exception_err(env, EXCP0D_GPF, selector & 0xfffc);
         }
         new_stack = 0;
